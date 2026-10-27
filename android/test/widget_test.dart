@@ -26,8 +26,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'Frequenze Digitali',
       packageName: 'it.frequenzedigitali.frequenze_digitali',
-      version: '26.0.0-beta.8',
-      buildNumber: '8',
+      version: '26.0.0-beta.9',
+      buildNumber: '9',
       buildSignature: '',
     );
   });

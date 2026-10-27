@@ -25,7 +25,7 @@ anche il volume degli allarmi del dispositivo.
 
 La versione mostrata nell'app viene letta dai metadati della build. Prima di
 ogni beta, incrementare `version` in `pubspec.yaml` (per esempio
-`26.0.0-beta.8+8` → `26.0.0-beta.9+9`) e compilare
+`26.0.0-beta.9+9` → `26.0.0-beta.10+10`) e compilare
 `app-beta-release.apk`. Copiare il risultato in `Frequenze-Digitali.apk` e
 aggiornare `android/update.json` (percorso dal repository) con nuova versione,
 build e SHA-256 calcolato con
@@ -35,8 +35,7 @@ reso pubblico. Dalla
 schermata Informazioni scientifiche l'app controlla il manifest, scarica la
 beta successiva, ne verifica lo SHA-256 e chiede ad Android di installarla.
 Per passare dalla beta 6 occorre installare manualmente la beta 7 bootstrap
-una volta; poi il pulsante scarica la beta 8 dal repository. Le beta
-successive si aggiornano allo stesso modo.
+una volta; poi il pulsante scarica le beta successive dal repository.
 
 Il repository beta deve essere pubblico e raggiungibile dal telefono. Android
 richiede l'autorizzazione dell'utente per installare app da questa sorgente;
