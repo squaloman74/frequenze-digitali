@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ws://127.0.0.1:* ws://localhost:*">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frequenze Digitali</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header id="app-header" class="topbar" aria-hidden="true" inert>
+    <h1 class="brand">
+      <img class="brand-logo" src="assets/lorenz-circle.png" alt="">
+      <span>Frequenze Digitali</span>
+    </h1>
+    <div class="topbar-right">
+      <span class="version-tag">26 Beta</span>
+      <button id="btn-updates" class="btn" type="button">Cerca aggiornamenti</button>
+      <button id="btn-science-info" class="btn" type="button">Info scientifiche</button>
+      <span id="update-status" class="update-status" role="status" aria-live="polite"></span>
+      <button id="btn-release" class="btn" type="button" hidden>Apri release</button>
+      <span id="conn-badge" class="badge badge-warn" role="status">Offline</span>
+      <button id="btn-sim" class="btn" type="button">Avvia simulazione</button>
+      <span id="clock" class="clock">--:--:--</span>
+    </div>
+  </header>
+
+  <main id="app-content" aria-hidden="true" inert>
+  <!-- 1. Monitor segnale -->
+  <section class="panel panel-scope" aria-labelledby="scope-title">
+    <div class="panel-head">
+      <h2 id="scope-title">Monitor segnale</h2>
+      <div class="tabs" role="tablist" aria-label="Modalità di visualizzazione">
+        <button class="tab is-active" role="tab" aria-selected="true"  data-mode="freq" type="button">Frequenza nel tempo</button>
+        <button class="tab"           role="tab" aria-selected="false" data-mode="wave" type="button">Forma d'onda</button>
+        <button class="tab"           role="tab" aria-selected="false" data-mode="spec" type="button">Spettrogramma</button>
+      </div>
+    </div>
+    <div class="scope-body">
+      <canvas id="scope" aria-label="Grafico del segnale in tempo reale"></canvas>
+    </div>
+  </section>
+
+  <!-- 2. Sensor fusion e telemetria -->
+  <section class="panel panel-telemetry" aria-labelledby="tele-title">
+    <div class="panel-head">
+      <h2 id="tele-title">Sensor fusion e telemetria</h2>
+      <div class="telemetry-actions">
+        <button id="btn-calibrate" class="btn" type="button">Calibra ambiente · 10 s</button>
+        <span id="calibration-status" class="calibration-status" role="status" aria-live="polite">
+          Calibrazione non eseguita
+        </span>
+        <span id="grid-interference" class="interference-badge" role="status" hidden>
+          Interferenza rete 50/60 Hz
+        </span>
+        <button id="btn-speak" class="btn" type="button">Leggi stato</button>
+        <label class="voice-toggle"><input id="voice-alerts" type="checkbox"> Avvisi vocali</label>
+      </div>
+    </div>
+    <div class="tele-grid">
+
+      <div class="cell cell-freq">
+        <span class="cell-label">Frequenza corrente</span>
+        <span class="cell-value cell-value-xl"><span id="v-freq">---.--</span><span class="unit">Hz</span></span>
+        <span class="cell-sub">Δ <span id="v-dfreq">+0.00</span> Hz</span>
+      </div>
+
+      <div class="cell cell-attractor">
+        <span class="cell-label">Attrattore di Lorenz</span>
+        <dl class="kv">
+          <div><dt>X</dt><dd id="v-x">--</dd></div>
+          <div><dt>Y</dt><dd id="v-y">--</dd></div>
+          <div><dt>Z</dt><dd id="v-z">--</dd></div>
+        </dl>
+      </div>
+
+      <div class="cell">
+        <span class="cell-label">Microfono RMS</span>
+        <span class="cell-value"><span id="v-mic">--</span><span id="mic-unit" class="unit">dBFS</span></span>
+      </div>
+
+      <div class="cell">
+        <span class="cell-label">Magnetometro</span>
+        <span class="cell-value"><span id="v-mag">--</span><span class="unit">µT</span></span>
+      </div>
+
+      <div class="cell">
+        <span class="cell-label">Indice di entropia</span>
+        <span class="cell-value"><span id="v-ent">--</span></span>
+        <div class="meter" aria-hidden="true"><div id="m-ent" class="meter-fill"></div></div>
+      </div>
+
+      <div class="cell cell-status">
+        <span class="cell-label">Stato</span>
+        <ul class="status-list">
+          <li><span id="led-sync" class="led led-off"></span>Sincronicità: <strong id="s-sync">--</strong></li>
+          <li><span id="led-cal"  class="led led-off"></span>Sensori: <strong id="s-cal">--</strong></li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 3. Log -->
+  <section class="panel panel-log" aria-labelledby="log-title">
+    <div class="panel-head">
+      <h2 id="log-title">Log eventi e registro anomalie</h2>
+      <div class="log-tools">
+        <span id="log-count" class="muted">0 eventi</span>
+        <label class="threshold-control" for="anomaly-threshold">
+          Soglia Δ Hz
+          <input id="anomaly-threshold" type="number" min="1" max="450" step="1" value="25">
+        </label>
+        <button id="btn-pause"  class="btn" type="button">Blocca scorrimento</button>
+        <button id="btn-export" class="btn" type="button">Esporta CSV</button>
+        <button id="btn-clear"  class="btn" type="button">Svuota</button>
+      </div>
+    </div>
+    <div id="log" class="log" role="log" aria-live="off" tabindex="0"></div>
+  </section>
+  </main>
+
+  <section id="science-info" class="science-info" role="dialog" aria-modal="true"
+           aria-labelledby="science-info-title" hidden>
+    <div class="science-info-card">
+      <button id="btn-close-science-info" class="btn science-info-close" type="button"
+              aria-label="Chiudi informazioni">Chiudi</button>
+      <h2 id="science-info-title">Informazioni scientifiche</h2>
+      <p>
+        Frequenze Digitali è uno strumento tecnico di telemetria, sensor fusion e analisi
+        dei segnali. Ogni dato è indicato come misurato, derivato, simulato o non disponibile.
+      </p>
+      <ul>
+        <li>Il livello audio proviene dal microfono quando il dispositivo lo rende disponibile.</li>
+        <li>Frequenza e attrattore di Lorenz sono valori derivati dal modello, non misure di frequenze ambientali.</li>
+        <li>In questa versione il magnetometro e l’entropia non sono disponibili: non vengono inventati valori.</li>
+        <li>La simulazione è indicata separatamente; non vengono riprodotti banchi audio preregistrati.</li>
+        <li>La lettura vocale usa la sintesi vocale del sistema per leggere i dati mostrati.</li>
+        <li>La calibrazione audio stima il livello medio dBFS su 10 secondi; il magnetometro resta non disponibile senza hardware compatibile.</li>
+      </ul>
+      <p id="export-integrity-note">
+        L’esportazione include un manifesto SHA-256 con orario e ID dispositivo. L’hash consente di verificare che il CSV non sia cambiato rispetto al manifesto; non è una firma digitale né prova da solo chi abbia prodotto i dati.
+      </p>
+    </div>
+  </section>
+
+  <section id="license-gate" class="license-gate" role="dialog" aria-modal="true"
+           aria-labelledby="license-title" aria-describedby="license-description">
+    <div class="license-card">
+      <aside class="license-panel" aria-label="Informazioni sull’attivazione">
+        <div class="license-brand" aria-label="Frequenze Digitali">
+          <img class="license-brand-mark" src="assets/lorenz-circle.png" alt="">
+          <span>frequenze<br>digitali</span>
+        </div>
+        <p class="license-eyebrow">IL TUO SPAZIO, IN ASCOLTO</p>
+        <h2>Ogni segnale<br>ha il suo accesso.</h2>
+        <p class="license-panel-copy">
+          Seleziona il file della licenza e torna all’analisi in pochi passaggi.
+        </p>
+        <ol class="license-steps">
+          <li><span>01</span> Copia l’ID del dispositivo</li>
+          <li><span>02</span> Apri keydigitale installato a parte</li>
+          <li><span>03</span> Incolla il codice generato</li>
+        </ol>
+        <span class="license-edition">FREQUENZE DIGITALI <span>·</span> 26 BETA</span>
+      </aside>
+      <div class="license-form">
+        <span class="license-form-kicker"><span aria-hidden="true"></span> ACCESSO SICURO</span>
+        <h2 id="license-title">Attiva il dispositivo</h2>
+        <p id="license-description" class="license-description">
+          Inserisci il codice alfanumerico della licenza per attivare questo dispositivo.
+        </p>
+        <label class="license-label" for="license-hwid">ID DEL DISPOSITIVO</label>
+        <div class="license-hwid-row">
+          <input id="license-hwid" type="text" readonly placeholder="Calcolo in corso…">
+          <button id="btn-copy-hwid" class="btn" type="button">Copia ID</button>
+        </div>
+        <button id="btn-select-license" class="btn" type="button">Carica file licenza (.key)</button>
+        <label class="license-label license-key-label" for="license-key">CODICE ALFANUMERICO</label>
+        <textarea id="license-key" rows="5" spellcheck="false" autocomplete="off"
+                  placeholder="Incolla qui il codice alfanumerico"></textarea>
+        <button id="btn-activate" class="btn btn-primary" type="button">
+          Verifica e continua <span aria-hidden="true">→</span>
+        </button>
+        <p id="license-message" class="license-message" role="status" aria-live="polite">
+          Controllo della licenza in corso…
+        </p>
+        <p class="license-help">
+          Il generatore keydigitale è un programma separato, installato fuori da questa applicazione.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

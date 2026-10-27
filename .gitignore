@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local credentials and signing material
+**/license.key
+**/license_private.pem
+**/.env
+**/.env.*
+!**/.env.example
+**/*.p12
+**/*.jks
+**/*.keystore
+
+# JavaScript / Electron
+**/node_modules/
+**/dist/
+**/out/
+npm-debug.log*
+
+# Flutter / Android generated files
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/build/
+**/android/.gradle/
+**/android/local.properties
+
+# Local exports and obsolete snapshots
+/frontend/frequenze-digitali-log-*.csv
+/frontend/files.zip
+
+# Temporary project-root scripts
+/_write_license_guard.py
+/_ws_check2.py
+/_e2e_backend.py

@@ -1,0 +1,4 @@
+numpy
+sounddevice
+websockets>=14,<16
+cryptography>=41

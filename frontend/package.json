@@ -1,0 +1,18 @@
+{
+  "name": "frequenze-digitali-frontend",
+  "version": "26.0.0-beta.1",
+  "description": "Frequenze Digitali 26 Beta (Electron + Canvas + WebSocket)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "start:with-backend": "set FD_SPAWN_BACKEND=1&& electron .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}
