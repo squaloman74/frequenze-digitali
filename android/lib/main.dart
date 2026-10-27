@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:in_app_update/in_app_update.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:record/record.dart';
@@ -12,6 +14,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'license_service.dart';
+import 'app_update_service.dart';
 import 'signal_processing.dart';
 
 const _background = Color(0xFF0E0E10);
@@ -21,10 +24,13 @@ const _signal = Color(0xFF00FFCC);
 const _accent = Color(0xFFFFAA00);
 const _muted = Color(0xFF92999C);
 const _danger = Color(0xFFFF6B57);
-const _betaVersionLabel = '26 Beta';
 const _anomalyAlertChannel = MethodChannel(
   'it.frequenzedigitali/anomaly_alert',
 );
+const _apkInstallerChannel = MethodChannel(
+  'it.frequenzedigitali/apk_installer',
+);
+const _githubBetaUpdatesEnabled = bool.fromEnvironment('ENABLE_GITHUB_UPDATES');
 
 enum _SignalView { frequency, waveform, spectrum }
 
@@ -66,6 +72,7 @@ class TelemetryHomePage extends StatefulWidget {
 
 class _TelemetryHomePageState extends State<TelemetryHomePage> {
   late final LicenseService _licenseService;
+  final _appUpdateService = AppUpdateService();
   final _licenseController = TextEditingController();
   final _recorder = AudioRecorder();
   final _sampleWindow = <double>[];
@@ -102,6 +109,7 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
   double _soundAlertVolume = 65;
   bool _licensed = false;
   bool _loading = true;
+  bool _checkingForUpdate = false;
   bool _recording = false;
   bool _calibrating = false;
   bool _magneticAvailable = false;
@@ -111,11 +119,14 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
   DateTime? _lastMagneticAt;
   DateTime? _lastInvestigationSampleAt;
   DateTime? _lastAnomalyAlertAt;
+  String _versionLabel = 'VERSIONE';
+  String _versionDetails = 'Caricamento versione…';
 
   @override
   void initState() {
     super.initState();
     _licenseService = widget.licenseService ?? LicenseService();
+    unawaited(_loadAppVersion());
     unawaited(_loadAlertSettings());
     _clock = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!_licensed) return;
@@ -134,6 +145,158 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
       if (mounted) setState(() {});
     });
     unawaited(_initialize());
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      final majorVersion = packageInfo.version.split('.').first;
+      setState(() {
+        _versionLabel = packageInfo.version.toLowerCase().contains('beta')
+            ? '$majorVersion BETA'
+            : 'V$majorVersion';
+        _versionDetails =
+            '${packageInfo.version} (build ${packageInfo.buildNumber})';
+      });
+    } catch (error) {
+      _showMessage('Impossibile leggere la versione installata: $error');
+    }
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    if (_checkingForUpdate) return;
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      _showMessage(
+        'Gli aggiornamenti Google Play sono disponibili solo su Android.',
+      );
+      return;
+    }
+
+    setState(() => _checkingForUpdate = true);
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final installedBuildNumber = int.tryParse(packageInfo.buildNumber);
+      if (installedBuildNumber == null) {
+        throw FormatException(
+          'Numero build installata non valido: ${packageInfo.buildNumber}',
+        );
+      }
+
+      if (_githubBetaUpdatesEnabled) {
+        final release = await _appUpdateService.checkForUpdate(
+          installedBuildNumber: installedBuildNumber,
+        );
+        if (!mounted) return;
+
+        if (release != null) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              backgroundColor: _surface,
+              title: const Text(
+                'Aggiornamento beta disponibile',
+                style: TextStyle(color: _signal),
+              ),
+              content: Text(
+                'Scaricare Frequenze Digitali ${release.version} '
+                '(build ${release.buildNumber}) da GitHub? '
+                'Android chiederà conferma prima di installarla.',
+                style: const TextStyle(color: _muted, height: 1.5),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Scarica'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true || !mounted) return;
+
+          final navigator = Navigator.of(context, rootNavigator: true);
+          showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => const PopScope(
+              canPop: false,
+              child: AlertDialog(
+                backgroundColor: _surface,
+                content: Row(
+                  children: [
+                    CircularProgressIndicator(color: _signal),
+                    SizedBox(width: 20),
+                    Expanded(child: Text('Download e verifica APK…')),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          try {
+            final apk = await _appUpdateService.downloadUpdate(release);
+            if (!mounted) return;
+            final installStarted = await _apkInstallerChannel
+                .invokeMethod<bool>('installApk', {'path': apk.path});
+            if (!mounted) return;
+            _showMessage(
+              installStarted == true
+                  ? 'Conferma l’installazione nella finestra di Android.'
+                  : 'Consenti a Frequenze Digitali di installare app sconosciute '
+                        'nelle impostazioni, poi premi di nuovo “Controlla '
+                        'aggiornamenti”.',
+            );
+          } finally {
+            if (navigator.mounted && navigator.canPop()) {
+              navigator.pop();
+            }
+          }
+          return;
+        }
+      }
+
+      try {
+        final updateInfo = await InAppUpdate.checkForUpdate();
+        if (!mounted) return;
+        if (updateInfo.installStatus == InstallStatus.downloaded) {
+          await InAppUpdate.completeFlexibleUpdate();
+        } else if (updateInfo.updateAvailability ==
+            UpdateAvailability.updateAvailable) {
+          if (updateInfo.immediateUpdateAllowed) {
+            await InAppUpdate.performImmediateUpdate();
+          } else if (updateInfo.flexibleUpdateAllowed) {
+            await InAppUpdate.startFlexibleUpdate();
+            _showMessage('Download aggiornamento Google Play avviato.');
+          } else {
+            _showMessage(
+              'Aggiornamento Play disponibile ma non installabile ora.',
+              error: true,
+            );
+          }
+        } else {
+          _showMessage(
+            'Nessuna beta più recente disponibile. Versione $_versionDetails.',
+          );
+        }
+      } catch (error) {
+        _showMessage(
+          'Nessuna beta più recente su GitHub e Google Play non è disponibile '
+          'per questa installazione: $error',
+          error: true,
+        );
+      }
+    } catch (error) {
+      _showMessage(
+        'Controllo aggiornamenti beta non riuscito: $error',
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _checkingForUpdate = false);
+    }
   }
 
   Future<void> _loadAlertSettings() async {
@@ -182,6 +345,7 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
   @override
   void dispose() {
     _clock?.cancel();
+    _appUpdateService.close();
     unawaited(_audioSubscription?.cancel());
     unawaited(_magneticSubscription?.cancel());
     unawaited(_recorder.dispose());
@@ -519,9 +683,9 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           backgroundColor: _surface,
-          title: const Text(
-            'Feedback beta 26',
-            style: TextStyle(color: _signal),
+          title: Text(
+            'Feedback $_versionLabel',
+            style: const TextStyle(color: _signal),
           ),
           content: TextField(
             autofocus: true,
@@ -554,9 +718,9 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
       await SharePlus.instance.share(
         ShareParams(
           title: 'Feedback Frequenze Digitali',
-          subject: 'Feedback Frequenze Digitali - $_betaVersionLabel',
+          subject: 'Feedback Frequenze Digitali - $_versionDetails',
           text:
-              'Feedback per Frequenze Digitali $_betaVersionLabel:\n\n'
+              'Feedback per Frequenze Digitali $_versionDetails:\n\n'
               '$feedback\n\n'
               'Il feedback non include automaticamente dati dei sensori o '
               'report delle sessioni.',
@@ -743,11 +907,11 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
                 border: Border.all(color: _signal),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 child: Text(
-                  '26 BETA',
-                  style: TextStyle(
+                  _versionLabel,
+                  style: const TextStyle(
                     color: _signal,
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -1359,14 +1523,42 @@ class _TelemetryHomePageState extends State<TelemetryHomePage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _surface,
-        title: const Text(
-          'Informazioni scientifiche · $_betaVersionLabel',
+        title: Text(
+          'Informazioni scientifiche · $_versionLabel',
           style: TextStyle(color: _signal),
         ),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Frequenze Digitali è uno strumento di telemetria e analisi. Il microfono e il magnetometro forniscono misure dirette quando l’hardware è disponibile. Frequenza e attrattore sono derivati dal modello matematico di Lorenz, non sono frequenze ambientali. La calibrazione audio stima il livello medio su 10 secondi. L’esportazione usa un hash SHA-256 per controllare l’integrità: non è una firma digitale.',
-            style: TextStyle(color: _muted, height: 1.5),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Versione $_versionDetails',
+                style: const TextStyle(color: _signal, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Frequenze Digitali è uno strumento di telemetria e analisi. Il microfono e il magnetometro forniscono misure dirette quando l’hardware è disponibile. Frequenza e attrattore sono derivati dal modello matematico di Lorenz, non sono frequenze ambientali. La calibrazione audio stima il livello medio su 10 secondi. L’esportazione usa un hash SHA-256 per controllare l’integrità: non è una firma digitale.',
+                style: TextStyle(color: _muted, height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _checkingForUpdate
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        unawaited(_checkForAppUpdate());
+                      },
+                icon: const Icon(Icons.system_update_alt),
+                label: Text(
+                  _checkingForUpdate
+                      ? 'Controllo in corso…'
+                      : _githubBetaUpdatesEnabled
+                      ? 'Controlla aggiornamenti beta / Play'
+                      : 'Controlla aggiornamenti Play',
+                ),
+              ),
+            ],
           ),
         ),
         actions: [

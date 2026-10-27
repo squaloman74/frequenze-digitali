@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frequenze_digitali/main.dart';
@@ -22,6 +23,13 @@ class _FakeLicenseService extends LicenseService {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'Frequenze Digitali',
+      packageName: 'it.frequenzedigitali.frequenze_digitali',
+      version: '26.0.0-beta.8',
+      buildNumber: '8',
+      buildSignature: '',
+    );
   });
 
   testWidgets('opens the device activation screen instead of the placeholder', (
@@ -113,11 +121,11 @@ void main() {
 
     await tester.tap(find.byTooltip('Informazioni scientifiche'));
     await tester.pumpAndSettle();
-    expect(find.text('Informazioni scientifiche · 26 Beta'), findsOneWidget);
+    expect(find.text('Informazioni scientifiche · 26 BETA'), findsOneWidget);
 
     await tester.tap(find.text('Invia feedback'));
     await tester.pumpAndSettle();
-    expect(find.text('Feedback beta 26'), findsOneWidget);
+    expect(find.text('Feedback 26 BETA'), findsOneWidget);
     expect(find.text('Condividi feedback'), findsOneWidget);
     expect(find.text('Il feedback non include automaticamente'), findsNothing);
     await tester.enterText(
@@ -130,7 +138,7 @@ void main() {
     );
     await tester.tap(find.text('Annulla'));
     await tester.pumpAndSettle();
-    expect(find.text('Feedback beta 26'), findsNothing);
+    expect(find.text('Feedback 26 BETA'), findsNothing);
   });
 
   testWidgets('anomaly beeps can be disabled and their volume is adjustable', (

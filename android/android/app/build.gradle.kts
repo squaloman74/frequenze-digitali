@@ -8,6 +8,16 @@ android {
     namespace = "it.frequenzedigitali.frequenze_digitali"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("beta") {
+            dimension = "distribution"
+        }
+        create("play") {
+            dimension = "distribution"
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

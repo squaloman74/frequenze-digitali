@@ -23,10 +23,39 @@ rilevata una componente stabile a 50/60 Hz. Si possono disattivare e regolare
 dal 10% al 100% nella sezione del microfono; il volume iniziale è 65% e segue
 anche il volume degli allarmi del dispositivo.
 
-Per ogni aggiornamento beta, incrementare il numero dopo `+` in `version`
-(`pubspec.yaml`), compilare una nuova APK e distribuirla ai tester firmata con
-la stessa chiave della versione installata. Gli aggiornamenti distribuiti
-manualmente non si installano da soli.
+La versione mostrata nell'app viene letta dai metadati della build. Prima di
+ogni beta, incrementare `version` in `pubspec.yaml` (per esempio
+`26.0.0-beta.8+8` → `26.0.0-beta.9+9`) e compilare
+`app-beta-release.apk`. Copiare il risultato in `Frequenze-Digitali.apk` e
+aggiornare `android/update.json` (percorso dal repository) con nuova versione,
+build e SHA-256 calcolato con
+`(Get-FileHash .\Frequenze-Digitali.apk -Algorithm SHA256).Hash.ToLowerInvariant()`.
+Pubblicare insieme i due file sul branch `main` di questo repository GitHub
+reso pubblico. Dalla
+schermata Informazioni scientifiche l'app controlla il manifest, scarica la
+beta successiva, ne verifica lo SHA-256 e chiede ad Android di installarla.
+Per passare dalla beta 6 occorre installare manualmente la beta 7 bootstrap
+una volta; poi il pulsante scarica la beta 8 dal repository. Le beta
+successive si aggiornano allo stesso modo.
+
+Il repository beta deve essere pubblico e raggiungibile dal telefono. Android
+richiede l'autorizzazione dell'utente per installare app da questa sorgente;
+la firma dell'APK scaricata deve corrispondere a quella dell'app installata.
+La beta usa un product flavor dedicato, così il permesso sideload non viene
+incluso nell'APK Play:
+
+```powershell
+flutter build apk --release --flavor beta --dart-define=ENABLE_GITHUB_UPDATES=true
+flutter build appbundle --release --flavor play
+```
+
+Google Play resta supportato per le release distribuite dallo Store.
+
+La configurazione di firma release in questo progetto usa attualmente la
+chiave debug locale: serve configurare una chiave di caricamento privata prima
+di pubblicare su Google Play. Gli APK distribuiti manualmente non possono
+usare gli aggiornamenti in-app di Play e devono essere aggiornati installando
+una nuova APK firmata con la stessa chiave.
 
 ## Avvio e test
 
